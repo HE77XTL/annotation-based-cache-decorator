@@ -6,8 +6,6 @@ import net.bytebuddy.implementation.bind.annotation.*;
 import net.bytebuddy.matcher.ElementMatchers;
 
 import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -29,49 +27,9 @@ public class CacheClassDecorator {
                 .getLoaded();
     }
 
-    private static class CacheKey {
-        private Object thisObject;
-        private String methodName;
-        private Object[] arguments;
-
-        private CacheKey(Object thisObject, String methodName, Object[] arguments) {
-            this.thisObject = thisObject;
-            this.methodName = methodName;
-            this.arguments = arguments;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            CacheKey cacheKey = (CacheKey) o;
-            return Objects.equals(thisObject, cacheKey.thisObject) &&
-                    Objects.equals(methodName, cacheKey.methodName) &&
-                    Arrays.equals(arguments, cacheKey.arguments);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Objects.hash(thisObject, methodName);
-            result = 31 * result + Arrays.hashCode(arguments);
-            return result;
-        }
-    }
-
-    private static class CacheValue {
-        private Object value;
-        private long time;
-
-        CacheValue(Object value, long time) {
-            this.value = value;
-            this.time = time;
-        }
-    }
 
     public static class CacheAdvisor {
         private static ConcurrentHashMap<CacheKey, CacheValue> cache = new ConcurrentHashMap<>();
-
-
 
         @RuntimeType
         public static Object intercept(
@@ -80,7 +38,6 @@ public class CacheClassDecorator {
                 @This Object thisObject,
                 @AllArguments Object[] arguments) throws Exception {
             System.currentTimeMillis();
-            System.out.println("intercept-----");
             CacheKey cacheKey = new CacheKey(thisObject, method.getName(), arguments);
 
             final CacheValue resultExistingIncache = cache.get(cacheKey);
@@ -89,7 +46,7 @@ public class CacheClassDecorator {
                 if (cacheExpire(resultExistingIncache, method)) {
                     return invokeRealMethodAndPutCache(superCall, cacheKey);
                 } else {
-                    return resultExistingIncache.value;
+                    return resultExistingIncache.getValue();
                 }
             } else {
                 return invokeRealMethodAndPutCache(superCall, cacheKey);
@@ -103,7 +60,7 @@ public class CacheClassDecorator {
         }
 
         private static boolean cacheExpire(CacheValue cacheValue, Method method) {
-            long time = cacheValue.time;
+            long time = cacheValue.getTime();
             int cacheSeconds = method.getAnnotation(Cache.class).cacheSeconds();
             return System.currentTimeMillis() - time > cacheSeconds * 1000;
         }
